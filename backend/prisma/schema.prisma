@@ -1,0 +1,234 @@
+// Multi-tenant e-commerce schema.
+// Every tenant-owned row carries shopId; every query must filter by it.
+// Money is stored as integers in minor units (e.g. pesewas / cents).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum UserRole {
+  SUPER_ADMIN // platform operator, not tied to a shop
+  OWNER // shop owner: full control of one shop, can manage staff
+  STAFF // shop staff: products, orders, messages
+}
+
+enum DeliveryType {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  READY
+  DELIVERED
+  PICKED_UP
+  CANCELLED
+}
+
+enum MessageStatus {
+  NEW
+  READ
+  REPLIED
+}
+
+model Shop {
+  id       Int     @id @default(autoincrement())
+  slug     String  @unique @db.VarChar(60) // also the default subdomain
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true)
+
+  // Branding & contact
+  tagline      String? @db.VarChar(200)
+  logoUrl      String? @db.VarChar(500)
+  primaryColor String  @default("#1f6b4f") @db.VarChar(20)
+  contactPhone String? @db.VarChar(40)
+  contactEmail String? @db.VarChar(160)
+  whatsapp     String? @db.VarChar(40)
+  address      String? @db.VarChar(300)
+
+  // Commerce settings
+  currency        String  @default("GHS") @db.VarChar(3)
+  pickupEnabled   Boolean @default(true)
+  pickupAddress   String? @db.VarChar(300)
+  deliveryEnabled Boolean @default(true)
+  deliveryFee     Int     @default(0) // minor units
+
+  // Per-shop order numbering: <orderPrefix>-0001
+  orderPrefix     String @default("ORD") @db.VarChar(10)
+  nextOrderNumber Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  domains    ShopDomain[]
+  users      User[]
+  categories Category[]
+  products   Product[]
+  orders     Order[]
+  messages   Message[]
+}
+
+// Custom domains that resolve to a shop (e.g. baabahanson.com, www.baabahanson.com).
+// Subdomains of PLATFORM_DOMAIN resolve by slug and need no row here.
+model ShopDomain {
+  id     Int    @id @default(autoincrement())
+  host   String @unique @db.VarChar(190)
+  shopId Int
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  shopId       Int? // null for SUPER_ADMIN
+  shop         Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  email        String   @unique @db.VarChar(160)
+  name         String   @db.VarChar(120)
+  passwordHash String   @db.VarChar(100)
+  role         UserRole
+  isActive     Boolean  @default(true)
+  // Bumped on password change / logout-everywhere to invalidate old tokens
+  tokenVersion Int      @default(0)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  replies MessageReply[]
+
+  @@index([shopId])
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  shopId    Int
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name      String   @db.VarChar(80)
+  slug      String   @db.VarChar(90)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@unique([shopId, slug])
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  shopId      Int
+  shop        Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  categoryId  Int?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name        String    @db.VarChar(160)
+  slug        String    @db.VarChar(180)
+  description String    @default("") @db.Text
+  price       Int // minor units
+  stock       Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  images     ProductImage[]
+  orderItems OrderItem[]
+
+  @@unique([shopId, slug])
+  @@index([shopId, isActive, createdAt])
+  @@index([shopId, categoryId])
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String  @db.VarChar(500)
+  publicId  String? @db.VarChar(200) // Cloudinary public_id, null for external URLs
+  position  Int     @default(0)
+
+  @@index([productId, position])
+}
+
+model Order {
+  id          Int    @id @default(autoincrement())
+  shopId      Int
+  shop        Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderNumber String @db.VarChar(30)
+
+  customerName  String  @default("") @db.VarChar(120)
+  customerPhone String  @db.VarChar(40)
+  customerEmail String? @db.VarChar(160)
+
+  deliveryType    DeliveryType
+  deliveryAddress String       @default("") @db.VarChar(300)
+  note            String       @default("") @db.VarChar(1000)
+
+  // Snapshot of money at order time (minor units, in `currency`)
+  currency    String @db.VarChar(3)
+  subtotal    Int
+  deliveryFee Int    @default(0)
+  total       Int
+
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  items OrderItem[]
+
+  @@unique([shopId, orderNumber])
+  @@index([shopId, status, createdAt])
+  @@index([shopId, customerPhone])
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  // Snapshots so history survives product edits/deletes
+  name      String   @db.VarChar(160)
+  imageUrl  String?  @db.VarChar(500)
+  unitPrice Int
+  quantity  Int
+  lineTotal Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Message {
+  id          Int           @id @default(autoincrement())
+  shopId      Int
+  shop        Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  // Short random code given to the customer; required (with phone) to view replies
+  reference   String        @unique @db.VarChar(16)
+  name        String        @db.VarChar(120)
+  phone       String        @db.VarChar(40)
+  email       String?       @db.VarChar(160)
+  orderNumber String?       @db.VarChar(30)
+  body        String        @db.Text
+  status      MessageStatus @default(NEW)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  replies MessageReply[]
+
+  @@index([shopId, status, createdAt])
+}
+
+model MessageReply {
+  id        Int      @id @default(autoincrement())
+  messageId Int
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+}

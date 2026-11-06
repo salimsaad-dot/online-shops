@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/*
+ * Colour system
+ * - Neutral roles (paper, surface, raised, ink, ink-2, ink-3, line) are CSS variables so each area
+ *   can tint them: admin/platform use a graphite ramp (default below); the storefront switches to a
+ *   "premium & cinematic" stone ramp with `.theme-premium` (see app/(shop)/layout.tsx), plus
+ *   `--night` for its dark cinema sections (hero, spotlight, footer).
+ * - `--brand` is the shop's own colour (Shop.primaryColor), used sparingly: primary actions,
+ *   selection, a few links. `--brand-fg` is readable text on top of it; `--brand-ink` is the brand
+ *   colour darkened (if needed) to 4.5:1 for use as text on light backgrounds — use `text-brand-ink`,
+ *   never `text-brand`, for links and labels.
+ * Tailwind exposes them as bg-paper, text-ink-2, border-line, bg-brand, text-brand-fg …
+ */
+:root {
+  --brand: #1f6b4f;
+  --brand-fg: #ffffff;
+  --brand-ink: #1f6b4f;
+
+  --paper: #fafafa;
+  --surface: #ffffff;
+  --raised: #f4f4f5;
+  --ink: #171717;
+  --ink-2: #525252;
+  --ink-3: #737373;
+  --line: rgb(23 23 23 / 0.08);
+  --line-strong: rgb(23 23 23 / 0.16);
+
+  /* Shape — compact for admin/platform; the storefront theme rounds things off */
+  --radius-btn: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-card: 0.75rem;
+}
+
+.theme-premium {
+  --paper: #f6f5f2;
+  --surface: #ffffff;
+  --raised: #ecebe7;
+  --ink: #0d0d0c;
+  --ink-2: #4d4b47;
+  --ink-3: #6b6862; /* 4.9:1 on paper */
+  --line: rgb(13 13 12 / 0.08);
+  --line-strong: rgb(13 13 12 / 0.16);
+  --night: #0b0b0c;
+  --radius-btn: 9999px;
+  --radius-field: 0.875rem;
+  --radius-card: 1.5rem;
+  color: var(--ink);
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-ink: var(--brand-ink);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-night: var(--night, #0b0b0c);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body {
+  @apply bg-white text-gray-900 antialiased;
+}
+
+/* Small shared form styles */
+@layer components {
+  .input {
+    @apply block w-full rounded-[var(--radius-field)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink shadow-xs outline-none transition-colors placeholder:text-ink-3 focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:bg-raised;
+  }
+  /* Storefront fields: roomier, and 16px text so iOS doesn't zoom in on focus */
+  .theme-premium .input {
+    @apply px-4 py-3 text-base;
+  }
+  /* A <Field> with an error marks itself data-invalid */
+  [data-invalid] .input {
+    @apply border-red-500 focus:border-red-500 focus:ring-red-500/20;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-ink-2;
+  }
+  .card {
+    @apply rounded-[var(--radius-card)] border border-line bg-surface;
+  }
+  /* Display headline: large serif, tight leading, negative tracking as it grows */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+}
+
+/* Storefront motion — everything below collapses to a plain fade (or nothing) for reduced motion */
+/* Visible by default (server render, no JS); <Reveal> only marks data-pending on sections that start
+   below the fold, then clears it as they scroll into view. */
+.reveal {
+  transition:
+    opacity 900ms var(--ease-out),
+    transform 900ms var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal[data-pending] {
+  opacity: 0;
+  transform: translateY(24px);
+}
+/* Slow drift on the hero photo, restarted on every slide */
+@keyframes drift {
+  from { transform: scale(1.06); }
+  to { transform: scale(1); }
+}
+.drift {
+  animation: drift 7s var(--ease-out) both;
+}
+@keyframes hero-progress {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { transform: none; transition: opacity 300ms ease; }
+  .drift { animation: none; }
+  [class*="animate-[fade-in"] { animation: none !important; }
+}
+/* Horizontal product rails: scroll-snap, no visible scrollbar */
+.rail {
+  --rail-gutter: max(1rem, calc((100vw - 80rem) / 2 + 1rem)); /* lines the first card up with the page container */
+  padding-inline: var(--rail-gutter);
+  scroll-padding-inline: var(--rail-gutter); /* without this, snapping pulls cards flush to the screen edge */
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+.rail > * { scroll-snap-align: start; }

@@ -1,0 +1,21 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+backend/src/generated/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets — only the .env.example templates are committed
+.env
+.env.*
+!.env.example
+
+# Local tool state (browser sessions, audit screenshots)
+.gstack/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
