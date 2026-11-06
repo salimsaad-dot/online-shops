@@ -313,6 +313,12 @@ Prisma also refuses `migrate reset` when run by an AI agent without the owner's 
 
 Newest first. Each entry: date — what was done — what is next.
 
+- **2026-11-06 (midday)**: **First commit, pushed to GitHub.**
+  - Repo: https://github.com/salimsaad-dot/online-shops, branch `main`.
+  - Added a root `.gitignore`. It keeps out the real `.env` files (only the `.env.example` templates are committed), `node_modules`, builds, the generated Prisma client and `.gstack/` (local audit screenshots/browser state).
+  - A secret scan before committing found nothing.
+  - Git identity is set in this repo only (same as Academia Hub).
+
 - **2026-11-06 (late morning)**: **Storefront redesign "premium & cinematic", home page first (owner's choice; replaces the "warm neighbourhood shop" direction).**
   - Tokens: `.theme-premium` (stone ramp, `--night` for dark sections). Display font Instrument Serif (`.display`, `font-display`), Inter for the interface.
   - New components:
